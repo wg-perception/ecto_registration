@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+import ecto
+from ecto_opencv.highgui import imshow, FPSDrawer, MatPrinter, MatWriter, ImageSaver
+from ecto_opencv.imgproc import ConvertTo
+from ecto_opencv.cv_bp import CV_8UC1
+from ecto_openni import OpenNICapture, DEPTH_RGB
+from ecto_opencv.calib import DepthTo3d
+from ecto_opencv.features2d import ORB, DrawKeypoints, Matcher, MatchRefinement, MatchRefinement3d, DrawMatches
+from ecto_opencv.imgproc import cvtColor, Conversion
+from ecto_opencv.calib import LatchMat, Select3d, Select3dRegion, PlaneFitter, PoseDrawer, DepthValidDraw
+import argparse
+from ecto.opts import scheduler_options, run_plasm
+import sys
+import os
+
+n_features = 10000
+plasm = ecto.Plasm()
+
+#setup the input source, grayscale conversion
+capture = OpenNICapture(stream_mode=DEPTH_RGB, registration=True, sync=True)
+rgb2gray = cvtColor (flag=Conversion.RGB2GRAY)
+
+plasm.connect(capture['image'] >> rgb2gray ['image'])
+
+#convenience variable for the grayscale
+img_src = rgb2gray['image']
+
+#display the depth
+plasm.connect(capture['depth'] >> imshow(name='depth')[:],
+              )
+
+# calculate 3d points
+depthTo3d = DepthTo3d()
+plasm.connect(capture['depth'] >> depthTo3d['depth']
+)
+
+
+#connect up the test ORB
+orb = FeatureFinder('ORB test', n_features=n_features, n_levels=5, scale_factor=1.1)
+plasm.connect(img_src >> orb['image'],
+              depthTo3d['points3d'] >> orb['points3d']
+#              source['mask'] >> orb['mask']
+              )
+
+
+#display test ORB
+draw_kpts = DrawKeypoints()
+fps = FPSDrawer()
+orb_display = imshow('orb display', name='ORB', triggers=dict(save=ord('s')))
+depth_valid_draw = DepthValidDraw()
+plasm.connect(orb['keypoints'] >> draw_kpts['keypoints'],
+              capture['image'] >> depth_valid_draw['image'],
+#              source['mask'] >> depth_valid_draw['mask'],
+              depth_valid_draw['image'] >> draw_kpts['image'],
+              draw_kpts['image'] >> fps[:],
+             )
+
+sched = ecto.schedulers.Singlethreaded(plasm)
+sched.execute()
+
