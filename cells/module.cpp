@@ -1,15 +1,10 @@
 #include <ecto/ecto.hpp>
-#include <image_pipeline/pinhole_camera_model.h>
-#include <image_pipeline/enums.hpp>
+#include <boost/python/stl_iterator.hpp>
 
-using namespace image_pipeline;
+namespace bp = boost::python;
 
-ECTO_DEFINE_MODULE(image_pipeline){
-  boost::python::enum_<InterpolationMode>("InterpolationMode")
-    .value("CV_INTER_NN",image_pipeline::CV_INTER_NN)
-    .value("CV_INTER_LINEAR",image_pipeline::CV_INTER_LINEAR)
-    .value("CV_INTER_CUBIC",image_pipeline::CV_INTER_CUBIC)
-    .value("CV_INTER_AREA",image_pipeline::CV_INTER_AREA)
-    .export_values()
-    ;
+ECTO_DEFINE_MODULE(ecto_registration)
+{
+//  boost::python::def("insert_object", object_recognition::capture::insert_object);
+//  boost::python::def("insert_session", object_recognition::capture::insert_session);
 }

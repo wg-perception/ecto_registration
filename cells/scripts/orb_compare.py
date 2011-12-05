@@ -9,7 +9,6 @@ from ecto_opencv.calib import DepthTo3d
 from ecto.opts import scheduler_options, run_plasm
 
 from image_pipeline import LatchMat
-from ecto_registration import PoseEstimator3DProj
 
 n_feats = 500
 plasm = ecto.Plasm()
