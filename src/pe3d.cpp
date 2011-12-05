@@ -38,7 +38,7 @@
 #include <Eigen/LU>
 #include <Eigen/Geometry>
 #include <iostream>
-
+#include <opencv2/core/eigen.hpp>
 
 using namespace Eigen;
 using namespace std;
@@ -119,7 +119,7 @@ namespace pe
 
     int bestinl = 0;
     Matrix3f Kf;
-    cv2eigen(K,Kf);		    // camera matrix
+    cv::cv2eigen(K,Kf);		    // camera matrix
     float fb = Kf(0,0)*baseline; // focal length times baseline
     float maxInlierXDist2 = maxInlierXDist*maxInlierXDist;
     float maxInlierDDist2 = maxInlierDDist*maxInlierDDist;

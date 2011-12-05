@@ -38,6 +38,7 @@
 #include <Eigen/LU>
 #include <Eigen/Geometry>
 #include <iostream>
+#include <opencv2/core/eigen.hpp>
 
 #include "g2o/core/block_solver.h"
 #include "g2o/core/graph_optimizer_sparse.h"
