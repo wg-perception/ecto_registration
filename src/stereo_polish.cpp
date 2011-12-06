@@ -76,6 +76,7 @@ namespace pe
 
     int nmatch = matches.size();
     cout << "[polish] matches: " << nmatch << endl; 
+    if (nmatch < 2) return;
 
     Matrix3f Kf;
     cv2eigen(K,Kf);		    // camera matrix
@@ -87,14 +88,7 @@ namespace pe
     optimizer.setVerbose(true);
     g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
     // we should use a dense solver if we're going for Schur complements
-    if (0)
-    {
-      linearSolver = new g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>();
-    }
-    else
-    {
-      linearSolver = new g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>();
-    }
+    linearSolver = new g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>();
 
     g2o::BlockSolver_6_3 *solver_ptr = 
       new g2o::BlockSolver_6_3(&optimizer, linearSolver);
@@ -125,7 +119,7 @@ namespace pe
 
     // set up edges to points
     int point_id = 2;
-    for (int i=0; i<nmatch; i++)
+    for (int i=0; i<nmatch; i++, point_id++)
       {
 	const float* ti = train_pts.ptr<float>(matches[i].trainIdx);
 	const float* qi = query_pts.ptr<float>(matches[i].queryIdx);
@@ -143,7 +137,7 @@ namespace pe
         g2o::Edge_XYZ_VSC * e = new g2o::Edge_XYZ_VSC();
         e->vertices()[0] = dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_p);
         e->vertices()[1] = dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_se3);
-        Vector3d z(ti2[0],ti2[1],fb/ti[2]);
+        Vector3d z(ti2[0],ti2[1],ti2[0]-fb/ti[2]); // NOTE: disparities are right-image x values
         e->measurement() = z;
         e->inverseMeasurement() = -z;
         e->information() = Matrix3d::Identity();
@@ -155,7 +149,7 @@ namespace pe
         g2o::Edge_XYZ_VSC * e2 = new g2o::Edge_XYZ_VSC();
         e2->vertices()[0] = dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_p);
         e2->vertices()[1] = dynamic_cast<g2o::OptimizableGraph::Vertex*>(v2_se3);
-        Vector3d z2(qi2[0],qi2[1],fb/qi[2]);
+        Vector3d z2(qi2[0],qi2[1],qi2[0]-fb/qi[2]);
         e2->measurement() = z2;
         e2->inverseMeasurement() = -z2;
         e2->information() = Matrix3d::Identity();
@@ -166,155 +160,15 @@ namespace pe
       }	
 
     optimizer.initializeOptimization();
-    optimizer.setVerbose(true);
+    optimizer.setVerbose(false);
     cout << "[polish] Performing full BA:" << endl;
     optimizer.optimize(numIters);
     
     // return results
     pose2 = v2_se3->estimate();
-    AngleAxisd aa(pose2.rotation());
-    cout << "[stereo_polish] " << endl
-	 << pose2.translation().transpose() << endl
-	 << aa.angle()*180.0/M_PI << "   " << aa.axis().transpose() << endl;
-
+    R = pose2.rotation();
+    t = pose2.translation();
   }
 
-
-  void
-  sba_process_impl(const Eigen::SparseMatrix<int> &x, const Eigen::SparseMatrix<int> & y,
-                   const Eigen::SparseMatrix<int> &disparity, const Eigen::Matrix3d & K,
-                   const VectorQuaterniond & quaternions, const VectorVector3d & Ts,
-                   const VectorVector3d & in_point_estimates, VectorVector3d & out_point_estimates)
-  {
-    g2o::SparseOptimizer optimizer;
-    optimizer.setMethod(g2o::SparseOptimizer::LevenbergMarquardt);
-    optimizer.setVerbose(false);
-    g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
-    if (0)
-    {
-      linearSolver = new g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>();
-    }
-    else
-    {
-      linearSolver = new g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>();
-    }
-
-    g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(&optimizer, linearSolver);
-
-    optimizer.setSolver(solver_ptr);
-
-    double baseline = 0.075; // 7.5 cm baseline
-
-    // set up camera params
-    g2o::VertexSCam::setKcam(K(0, 0), K(1, 1), K(0, 2), K(1, 2), baseline);
-
-    // set up the camera vertices
-    unsigned int vertex_id = 0;
-    for (size_t i = 0; i < quaternions.size(); ++i)
-    {
-      g2o::SE3Quat pose(quaternions[i], Ts[i]);
-
-      g2o::VertexSCam * v_se3 = new g2o::VertexSCam();
-
-      v_se3->setId(vertex_id);
-      v_se3->estimate() = pose;
-      v_se3->setAll(); // set aux transforms
-
-      optimizer.addVertex(v_se3);
-      vertex_id++;
-    }
-
-    int point_id = vertex_id;
-
-    tr1::unordered_map<int, int> pointid_2_trueid;
-
-    // add point projections to this vertex
-    for (size_t i = 0; i < in_point_estimates.size(); ++i)
-    {
-      g2o::VertexPointXYZ * v_p = new g2o::VertexPointXYZ();
-
-      v_p->setId(point_id);
-      v_p->setMarginalized(true);
-      v_p->estimate() = in_point_estimates.at(i);
-
-      // First, make sure, the point is visible in several views
-      {
-        unsigned int count = 0;
-        for (size_t j = 0; j < quaternions.size(); ++j)
-        {
-          if ((x.coeff(j, i) == 0) && (y.coeff(j, i) == 0) && (disparity.coeff(j, i) == 0))
-            continue;
-          ++count;
-          if (count >= 2)
-            break;
-        }
-        if (count < 2)
-          continue;
-      }
-      // Add the different views to the optimizer
-      for (size_t j = 0; j < quaternions.size(); ++j)
-      {
-        // check whether the point is visible in that view
-        if ((x.coeff(j, i) == 0) && (y.coeff(j, i) == 0) && (disparity.coeff(j, i) == 0))
-          continue;
-
-        g2o::Edge_XYZ_VSC * e = new g2o::Edge_XYZ_VSC();
-
-        e->vertices()[0] = dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_p);
-
-        e->vertices()[1] = dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertices().find(j)->second);
-
-        Vector3d z(x.coeff(j, i), y.coeff(j, i), disparity.coeff(j, i));
-        e->measurement() = z;
-        e->inverseMeasurement() = -z;
-        e->information() = Matrix3d::Identity();
-
-        // TODO
-        //e->setRobustKernel(ROBUST_KERNEL);
-        e->setHuberWidth(1);
-
-        optimizer.addEdge(e);
-      }
-
-      optimizer.addVertex(v_p);
-
-      pointid_2_trueid.insert(make_pair(point_id, i));
-
-      ++point_id;
-    }
-
-    optimizer.initializeOptimization();
-
-    optimizer.setVerbose(true);
-
-    g2o::StructureOnlySolver<3> structure_only_ba;
-
-    cout << "Performing full BA:" << endl;
-    optimizer.optimize(5);
-
-    // Set the computed points in the final data structure
-    out_point_estimates = in_point_estimates;
-    for (tr1::unordered_map<int, int>::iterator it = pointid_2_trueid.begin(); it != pointid_2_trueid.end(); ++it)
-    {
-      g2o::HyperGraph::VertexIDMap::iterator v_it = optimizer.vertices().find(it->first);
-
-      if (v_it == optimizer.vertices().end())
-      {
-        cerr << "Vertex " << it->first << " not in graph!" << endl;
-        exit(-1);
-      }
-
-      g2o::VertexPointXYZ * v_p = dynamic_cast<g2o::VertexPointXYZ *>(v_it->second);
-
-      if (v_p == 0)
-      {
-        cerr << "Vertex " << it->first << "is not a PointXYZ!" << endl;
-        exit(-1);
-      }
-      out_point_estimates[it->second] = v_p->estimate();
-    }
-
-    // Set the unchange
-  }
 
 } // ends namespace pe

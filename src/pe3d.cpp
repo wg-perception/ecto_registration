@@ -278,10 +278,14 @@ namespace pe
       {
 	Matrix3d Rd = rot.cast<double>();
 	Vector3d trd = trans.cast<double>();
-	//	StereoPolish pol(1,false);
-	//	pol.polish(inls,train_kpts,query_kpts,train_pts,query_pts,K,baseline,
-	//	   Rd,trd);
+	StereoPolish pol(5,false);
+	pol.polish(inls,train_kpts,query_kpts,train_pts,query_pts,K,baseline,
+	   Rd,trd);
 
+	AngleAxisd aa;
+	aa.fromRotationMatrix(Rd);
+	cout << "[pe3d] Polished t: " << trd.transpose() << endl;
+	cout << "[pe3d] Polished AA: " << aa.angle()*180.0/M_PI << "   " << aa.axis().transpose() << endl;
 
 	int num = inls.size();
 	// get centroids
@@ -327,7 +331,6 @@ namespace pe
         Vector3d tr = cd0-R*cd1;    // translation 
 
 
-	AngleAxisd aa;
 	aa.fromRotationMatrix(R);
 	cout << "[pe3d] t: " << tr.transpose() << endl;
 	cout << "[pe3d] AA: " << aa.angle()*180.0/M_PI << "   " << aa.axis().transpose() << endl;
