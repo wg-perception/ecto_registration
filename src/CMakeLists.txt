@@ -11,10 +11,11 @@ target_link_libraries(registration
   ${g2o_LIBS}
   )
 
-  set_target_properties(registration PROPERTIES
-    VERSION ${registration_VERSION}
-    SOVERSION ${registration_SOVERSION}
-    )
+#We'll wait on this...
+#set_target_properties(registration PROPERTIES
+#  VERSION ${registration_VERSION}
+#  SOVERSION ${registration_SOVERSION}
+#  )
 
 #install the main shared lib
 install(TARGETS registration
