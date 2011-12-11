@@ -37,7 +37,7 @@
 #define _PE_H_
 
 #include <boost/shared_ptr.hpp>
-#include <cv.h>
+#include <opencv2/opencv.hpp>
 #include <cstdlib>
 #include <math.h>
 #include <Eigen/Dense>
