@@ -1,7 +1,7 @@
 import ecto
 from ecto_opencv.highgui import VideoCapture, imshow, FPSDrawer, MatPrinter, MatReader, imread
 from ecto_opencv.imgproc import cvtColor, Conversion
-from ecto_opencv.features2d import FAST, ORB, DrawKeypoints, Matcher, MatchRefinement, \
+from ecto_opencv.features2d import FASTFeature, ORB, DrawKeypoints, Matcher, MatchRefinement, \
     MatchRefinementHSvd, MatchRefinement3d, MatchRefinementPnP, DrawMatches, KeypointsToMat
 from ecto_opencv.calib import LatchMat, Select3d, Select3dRegion, PlaneFitter, PoseDrawer, DepthValidDraw, TransformCompose
 from ecto_object_recognition.tod_detection import LSHMatcher
@@ -10,7 +10,7 @@ from ecto_registration import MatchStereoProj
 
 class FeatureFinder(ecto.BlackBox):
     orb = ORB
-    fast = FAST
+    fast = FASTFeature
     keypointsTo2d = KeypointsToMat
     select3d = Select3d
     image = ecto.Passthrough
